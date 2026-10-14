@@ -3,7 +3,9 @@
   "outputDirectory": "public",
   "functions": {
     "api/index.php": {
-      "runtime": "vercel-php@0.8.0"
+      "runtime": "vercel-php@0.8.0",
+      "memory": 1024,
+      "maxDuration": 15
     }
   },
   "routes": [
@@ -23,14 +25,12 @@
   "env": {
     "APP_ENV": "production",
     "APP_DEBUG": "false",
-    "APP_CONFIG_CACHE": "/tmp/config.php",
-    "APP_EVENTS_CACHE": "/tmp/events.php",
-    "APP_PACKAGES_CACHE": "/tmp/packages.php",
-    "APP_ROUTES_CACHE": "/tmp/routes.php",
-    "APP_SERVICES_CACHE": "/tmp/services.php",
-    "VIEW_COMPILED_PATH": "/tmp",
+    "APP_KEY": "base64:4exX87pnx+TXC8I7yeNDIln/BAkff7ImP8TU+UkDmFQ=",
+    "VIEW_COMPILED_PATH": "/tmp/storage/framework/views",
     "CACHE_STORE": "array",
     "SESSION_DRIVER": "cookie",
-    "LOG_CHANNEL": "stderr"
+    "LOG_CHANNEL": "stderr",
+    "DB_CONNECTION": "sqlite",
+    "DB_DATABASE": "/tmp/database/database.sqlite"
   }
 }
