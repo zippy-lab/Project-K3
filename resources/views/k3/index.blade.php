@@ -1509,38 +1509,97 @@
             appState.isSubmitting = true;
 
             try {
-                // Validasi dan penyimpanan ke Backend Laravel
-                const response = await fetch("{{ route('k3.quiz.submit') }}", {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken,
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        student_name: 'Siswa PPLG',
-                        answers: appState.answers
-                    })
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    appState.xp += data.xp_earned;
-                    persistState();
-                    renderQuizResult(data);
-                    showToast(`Kuis Selesai! Kamu memperoleh +${data.xp_earned} XP 🏆`);
-                } else {
-                    alert('Gagal mengirim kuis. Silakan coba lagi.');
-                    appState.isSubmitting = false;
-                    if (submitBtn) {
-                        submitBtn.disabled = false;
-                        submitBtn.textContent = 'Kumpulkan Jawaban Selesai ✓';
+                // Coba kirim ke Backend Laravel jika backend aktif
+                let data = null;
+                try {
+                    const response = await fetch("{{ route('k3.quiz.submit') }}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            student_name: 'Siswa PPLG',
+                            answers: appState.answers
+                        })
+                    });
+                    if (response.ok) {
+                        data = await response.json();
                     }
+                } catch (netErr) {
+                    console.log('Backend API offline, fallback to client-side evaluation (Netlify Static mode)');
                 }
+
+                // Fallback perhitungan mandiri jika berjalan statis di Netlify
+                if (!data || !data.success) {
+                    let correctCount = 0;
+                    let unansweredCount = 0;
+                    let reviews = [];
+
+                    questionsData.forEach((q, idx) => {
+                        const userAns = appState.answers[idx];
+                        let isCorrect = false;
+
+                        if (userAns === undefined || (Array.isArray(userAns) && userAns.length === 0)) {
+                            unansweredCount++;
+                        } else if (q.multi) {
+                            const exp = [...q.a].sort();
+                            const act = [...(Array.isArray(userAns) ? userAns : [userAns])].sort();
+                            isCorrect = (JSON.stringify(exp) === JSON.stringify(act));
+                        } else {
+                            isCorrect = (Number(userAns) === Number(q.a));
+                        }
+
+                        if (isCorrect) correctCount++;
+
+                        const correctIndices = q.multi ? q.a : [q.a];
+                        const labels = correctIndices.map(ci => q.o[ci]).join(', ');
+
+                        reviews.push({
+                            question_index: idx + 1,
+                            question: q.q,
+                            user_answer: userAns,
+                            is_correct: isCorrect,
+                            correct_labels: labels,
+                            explanation: q.why
+                        });
+                    });
+
+                    const total = questionsData.length;
+                    const score = Math.round((correctCount / total) * 100);
+                    const xpEarned = correctCount * 10;
+                    const passed = (score >= 75);
+
+                    data = {
+                        success: true,
+                        score: score,
+                        correct_count: correctCount,
+                        incorrect_count: total - correctCount - unansweredCount,
+                        unanswered_count: unansweredCount,
+                        total_questions: total,
+                        xp_earned: xpEarned,
+                        passed: passed,
+                        created_at: new Date().toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }),
+                        reviews: reviews
+                    };
+                }
+
+                appState.xp += data.xp_earned;
+                appState.history.push({
+                    date: data.created_at,
+                    score: data.score,
+                    correct: data.correct_count,
+                    total: data.total_questions,
+                    xp: data.xp_earned,
+                    passed: data.passed
+                });
+                persistState();
+                renderQuizResult(data);
+                showToast(`Kuis Selesai! Kamu memperoleh +${data.xp_earned} XP 🏆`);
             } catch (err) {
                 console.error(err);
-                alert('Terjadi kesalahan jaringan saat mengirim kuis.');
+                alert('Terjadi kesalahan saat memproses kuis.');
                 appState.isSubmitting = false;
                 if (submitBtn) {
                     submitBtn.disabled = false;
